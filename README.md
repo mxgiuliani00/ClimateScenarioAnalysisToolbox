@@ -1,1 +1,5 @@
 # StatisticalDownscaling
+
+The spreadsheets implement the statistical downscaling method know as Quantile Mapping [e.g., 1, 2]Downscaling is based on to the quantile-quantile (Q-Q) plot between observed time-serie and control time-serie,  simulated through a climate model over the same time period of the observed serie.A Q-Q plot is a probability plot (i.e., a graphical method for comparing two probability distributions) by plotting their quantiles against each other. The Q-Q plot is used as a correction function in order to match the ctrl cdf (pdf) with the the obrs cdf (pdf).The scenario time-serie, i.e. the serie simulated through the climate model over a future period, is downscaled using of the same correction function used to downscale the control time serie.The correction function is based on the 99 percentiles of the control and observed cdfs. Outside this range (i.e. < 1 prc or > 99 prc), a constant correction is applied.Example: if the 99th quantile of January temperature is corrected by +1°C, any temperature above this threshold is corrected by +1°C. A linear interpolation is applied between two percentiles.
+
+
