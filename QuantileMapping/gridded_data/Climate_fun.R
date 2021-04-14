@@ -29,6 +29,7 @@ return_control <- function(init, var, ps, id) {
   
   # Check is a cell is nonnull
   x <- ncvar_get(nc, var)
+  nc_close(nc)
   idx <- apply(
     x,
     2,
@@ -48,7 +49,7 @@ return_control <- function(init, var, ps, id) {
   k <- 1
   idx <- matrix(NA, length(id), length(ps))
   
-  # Check is data for a certain model are not available
+  # Check if data for a certain model are not available
   for (f in id) {
     name <- grepl(f, fname)
     
@@ -64,8 +65,10 @@ return_control <- function(init, var, ps, id) {
   Xc <- matrix(list(), length(id), length(ps))
   
   switch (var,
-          'pav' = { A  = 'pr'
-          }, 'tas' = {A = 'tas'
+          'pav' = { A  = 'pr';
+          rc = 4
+          }, 'tas' = {A = 'tas';
+          rc = 2
           },
           stop('define the case')
   )
@@ -95,7 +98,7 @@ return_control <- function(init, var, ps, id) {
     x <- matrix(NA, nrow(y), nrow(st))
     
     for (j in 1:ncol(x)) {
-      x[ ,j] <- y[, d_min[j]]
+      x[ ,j] <- round(y[, d_min[j]], rc)
     }
     
     Xc[[idx[m]]] <- x
@@ -169,6 +172,7 @@ downscale <- function(var, Xf, Xc, init) {
   nc <- nc_open(fname)
   
   x <- ncvar_get(nc, var)
+  nc_close(nc)
   idx <- apply(
     x,
     2,
