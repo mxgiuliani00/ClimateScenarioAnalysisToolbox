@@ -26,9 +26,16 @@ return_control <- function(init, var, ps, id) {
   
   lon <- ncvar_get(nc, 'lon')
   lat <- ncvar_get(nc, 'lat')
-  
+  switch (var,
+          'pav' = { A  = 'pr';
+          rc = 4
+          }, 'tas' = {A = 'tas';
+          rc = 2
+          },
+          stop('define the case')
+  )
   # Check is a cell is nonnull
-  x <- ncvar_get(nc, var)
+  x <- ncvar_get(nc, A)
   nc_close(nc)
   idx <- apply(
     x,
@@ -153,17 +160,19 @@ downscale <- function(var, Xf, Xc, init) {
   # A list of matrixes containing downscaled data
   
   switch (var,
-          'pav' = { A <- 'pav';
-          A1 <- 'pr';
-          A2 <- 'P';
-          mult <- 86400
-          }, 'tas' = {A <- 'tas';
-          A1 <- 'tas';
-          A2 <- 'T';
-          mult <- 1
-          },
-          stop('define the case')
-  )
+  'pav' = { A <- 'pav';
+  A1 <- 'pr';
+  A2 <- 'P';
+  #mult <- 86400
+  trans <- function(x){x*86400};
+  }, 'tas' = {A <- 'tas';
+  A1 <- 'tas';
+  A2 <- 'T';
+  #mult <- 1
+  trans <- function(x){x-273.15};
+  },
+  stop('define the case')
+)
   
   fin <- paste(init, var, sep = '/')
   setwd(fin)
@@ -171,7 +180,7 @@ downscale <- function(var, Xf, Xc, init) {
   fname <- list.files(pattern = '*.nc')
   nc <- nc_open(fname)
   
-  x <- ncvar_get(nc, var)
+  x <- ncvar_get(nc, A1)
   nc_close(nc)
   idx <- apply(
     x,
@@ -198,9 +207,12 @@ downscale <- function(var, Xf, Xc, init) {
       idx <- !(is.null(obs) | is.null(cont) | is.null(fut))
       
       if (idx) {
-        cont <- cont*mult
-        fut <- fut*mult
+        # cont <- cont*mult
+        # fut <- fut*mult
+        cont <- trans(cont)
+        fut <- trans(fut)
         x <- Downscaling(obs, cont, fut, A2)
+        #x <- round(Downscaling(obs, cont, fut, A2), 2) # if you want to approximate until the second decimal, uncomment R. 200 and comment R. 197-199
         Xd[[i, j]] <- x
       }
       
@@ -208,6 +220,7 @@ downscale <- function(var, Xf, Xc, init) {
   }
   return(Xd)
 }
+
 
 Downscaling <- function(observation, control, future, var) {
   
@@ -442,7 +455,20 @@ compute_downscaling_qq_Daily_MW <- function( obsr , ctrl ,  var , w ,  picture, 
            Prc_ctrl_temp = as.numeric(quantile( ctr[ctr>TP] , Prc )) ; 
            Prc_ctrl[ ,i] = t(Prc_ctrl_temp) ;},
            stop("Variable name is undefined"))
-  }
+    #}
+           
+           
+    # added part (for the Nile case)
+           
+           if (sum(is.na(Prc_ctrl[, i]))>=1 ) {
+             Prc_ctrl[, i] <- 0
+           }
+           
+           if (sum(is.na(Prc_obsr[, i]))>=1 ) {
+             Prc_obsr[, i] <- 0
+           }
+         }
+
   
   # # FIGURE: QQ plot
   # if picture
@@ -543,6 +569,10 @@ compute_downscaling_qq_Daily_MW <- function( obsr , ctrl ,  var , w ,  picture, 
            idx_temp1=as.logical(temp1);},
            stop("Variable name is undefined"))
     inp_mod <- data.frame(x =  Prc_ctrl[ ,i], y = Prc_obsr[ ,i]) 
+    
+    flag1 <- all(is.na(inp_mod$x))
+    flag2 <- all(is.na(inp_mod$y))
+    
     mod <- lm(y~x, data = inp_mod)
     ctrl_d[idx_temp1]= predict(mod, newdata= data.frame(x = y_ctrl_original[idx_temp1]))
   }
@@ -617,6 +647,10 @@ apply_downscaling_qq_Daily_MW <- function( scen ,var, Prc_obsr , Prc_ctrl, TP) {
     
     #     scen_d( find(ID(:,i)) ) = interp1( Prc_ctrl(uidx,i) , Prc_obsr(uidx,i) , scen( find(ID(:,i)) ) ) ;
     inp_mod <- data.frame(x =  Prc_ctrl[uidx ,i], y = Prc_obsr[uidx ,i]) 
+    
+    flag1 <- all(is.na(inp_mod$x))
+    flag2 <- all(is.na(inp_mod$y))
+    
     mod <- lm(y~x, data = inp_mod)
     scen_d[idx_temp1]= predict(mod, newdata= data.frame(x = scen[idx_temp1])); 
   }
@@ -654,7 +688,16 @@ nc_from_ts <- function(x, init, var, id, pss, init_n) {
   lon <- ncvar_get(nc, 'lon')
   lat <- ncvar_get(nc, 'lat')
   
-  y <- ncvar_get(nc, var)
+  # 680-686 added because vobjtovarid4(nc, varid, verbose = verbose, allowdimvar = TRUE) cannot find var (pav)
+  switch (var,
+          'pav' = { A  = 'pr'
+          }, 'tas' = {A = 'tas'
+          },
+          stop('define the case')
+  )
+  
+  # y <- ncvar_get(nc, var)
+  y <- ncvar_get(nc, A)
   val <- apply(
     y,
     2,
@@ -743,7 +786,7 @@ nc_gen <- function(z, var, label_x, label_y, lat, lon, init_n) {
   pth <- paste(init_n, var, label_x, sep = '/')
   
   outputfile <- paste(pth, 
-                       paste('Umbeluzi', label_x, label_y, '.nc', sep = '_'), 
+                      paste('Basin', label_x, label_y, '.nc', sep = '_'), 
                       sep = '/'
   )
   
@@ -817,7 +860,7 @@ plot_futures <- function(p, vars, pss, id) {
     }
     
     y <- as.data.frame(y)
-    y <- cbind(y, c('4.5', '8.5'))
+    y <- cbind(y, c('2.6','4.5','8.5'))
     colnames(y) <- c(id, 'RCP')
     
     y <- melt(y, 'RCP')
@@ -873,7 +916,7 @@ plot_futures <- function(p, vars, pss, id) {
         Delta ~ 'P' ~ '[mm/day]')
     )+
     ylab(
-      bquote(Delta ~ 'T' ~ '[K]')
+      bquote(Delta ~ 'T' ~ '[°C]')
     )+
     scale_color_manual(
       values = c('green',
@@ -903,7 +946,7 @@ MASH_data <- function(var, init_n, model, periods) {
           u = 'mm/day'
           }, 'tas' = {A <- 'tas';
           A1 <- 'Temperature';
-          u = 'K'
+          u = '°C'
           },
           stop('define the variable')
   )
@@ -1092,6 +1135,3 @@ MASH_plot <- function(x, Ys, w, Y, datalab, titolo) {
   
   
 } 
-
-
-
